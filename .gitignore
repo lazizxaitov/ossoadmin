@@ -20,6 +20,10 @@
 # production
 /build
 
+# runtime store and uploaded media
+/data/*.sqlite*
+/public/uploads/**
+
 # misc
 .DS_Store
 *.pem

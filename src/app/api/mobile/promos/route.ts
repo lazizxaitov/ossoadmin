@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { calculatePromo } from "@/lib/promo";
+export async function GET(request:Request){void request.url;const promos=db.prepare(`SELECT code,description,discount_type discountType,discount_value discountValue,min_order minOrder,ends_at endsAt FROM promos WHERE active=1 AND (starts_at IS NULL OR starts_at<=CURRENT_TIMESTAMP) AND (ends_at IS NULL OR ends_at>=CURRENT_TIMESTAMP) AND (usage_limit IS NULL OR used_count<usage_limit) ORDER BY created_at DESC`).all();return NextResponse.json({promos},{headers:{"Access-Control-Allow-Origin":"*","Cache-Control":"no-store"}});}
+export async function POST(request:Request){try{const body=await request.json();const result=calculatePromo(String(body.code||""),Math.max(0,Number(body.subtotal)||0));return NextResponse.json({code:result.promo?.code,discount:result.discount,deliveryFee:result.deliveryFee,total:result.total});}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Промокод недействителен."},{status:400});}}

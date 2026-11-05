@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OSSO Admin
 
-## Getting Started
+Админ-панель магазина сантехники OSSO на Next.js 16. Собственные товары,
+категории, клиенты, заказы, промокоды и пользователи хранятся в SQLite-файле
+`data/osso-admin.sqlite`. Загруженные изображения находятся в `public/uploads`.
 
-First, run the development server:
+## Запуск
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Откройте http://localhost:3000. Development-вход: `admin` / `ossoadmin`.
+В production обязательно задайте все `ADMIN_*` переменные из `env.example`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## OSSO CRM
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Каталог CRM загружается через защищённый серверный proxy
+`/api/catalog/products`. `CRM_API_URL` должен указывать на полный endpoint,
+например `http://localhost:3001/api/store/products`. `CRM_API_KEY` должен
+совпадать с `STORE_API_KEY` CRM.
+`USD_TO_UZS_RATE` задаёт курс конвертации CRM-цен для мобильной витрины.
 
-## Learn More
+## API для мобильного приложения
 
-To learn more about Next.js, take a look at the following resources:
+- `GET /api/mobile/products?source=all|crm|admin`
+- `GET /api/mobile/categories`
+- `GET /api/mobile/banners`
+- `GET /api/mobile/promos`
+- `POST /api/mobile/orders`
+- `POST /api/mobile/auth/register`
+- `POST /api/mobile/auth/login`
+- `GET /api/mobile/account/orders`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Мобильное приложение подключено к этим endpoint'ам и использует серверные
+цены, остатки и расчёт промокода.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Онлайн-оплата CLICK
 
-## Deploy on Vercel
+В мобильном приложении доступны два способа: наличные и карта. Для оплаты
+картой администратор выбирает в разделе «Настройки» один из режимов:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `CLICK` — платёжная ссылка формируется для каждого заказа, а статус
+  подтверждается callback-запросом CLICK;
+- `Ссылка` — открывается заданный администратором HTTPS-адрес, после чего
+  менеджер вручную отмечает оплату в таблице заказов.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Заполните `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `CLICK_SECRET_KEY` и при
+необходимости `CLICK_MERCHANT_USER_ID` в `.env`. В кабинете CLICK укажите
+публичные HTTPS callback-адреса:
+
+- `https://ваш-домен/api/payments/click/prepare`
+- `https://ваш-домен/api/payments/click/complete`
+
+Ключи не передаются в мобильное приложение. Сервер проверяет подпись CLICK,
+сумму и заказ, повторные callback-запросы обрабатываются безопасно. Оплаченный
+заказ нельзя отменить в панели до оформления возврата через CLICK.
+
+## Production
+
+Нужен сервер с постоянным диском: база SQLite и загруженные файлы не должны
+исчезать после перезапуска или деплоя. Для резервного копирования сохраняйте
+`data` и `public/uploads`.
+
+Заказы с CRM-товарами резервируют остатки через
+`POST /api/store/orders/reserve` в OSSO CRM. При отмене заказа резерв снимается.

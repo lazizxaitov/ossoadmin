@@ -1,0 +1,10 @@
+import { NextResponse } from "next/server";
+import { asBoolean, db, id } from "@/lib/db";
+
+type PromoRow={id:string;code:string;description:string;discountType:string;discountValue:number;minOrder:number;usageLimit:number|null;usedCount:number;startsAt:string|null;endsAt:string|null;active:number};
+const list=()=> (db.prepare(`SELECT id,code,description,discount_type discountType,discount_value discountValue,min_order minOrder,usage_limit usageLimit,used_count usedCount,starts_at startsAt,ends_at endsAt,active FROM promos ORDER BY created_at DESC`).all() as PromoRow[]).map(p=>({...p,active:Boolean(p.active)}));
+export async function GET(){return NextResponse.json({promos:list()});}
+export async function POST(request:Request){try{const b=await request.json();const code=String(b.code||"").trim().toUpperCase();if(!code)return NextResponse.json({error:"Введите код."},{status:400});const promoId=id("promo");db.prepare(`INSERT INTO promos (id,code,description,discount_type,discount_value,min_order,usage_limit,starts_at,ends_at,active) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(promoId,code,String(b.description||""),b.discountType||"percent",Math.max(0,Number(b.discountValue)||0),Math.max(0,Number(b.minOrder)||0),b.usageLimit?Number(b.usageLimit):null,b.startsAt||null,b.endsAt||null,b.active===false?0:1);return NextResponse.json({promo:list().find(p=>p.id===promoId)},{status:201});}catch{return NextResponse.json({error:"Промокод уже существует или данные некорректны."},{status:400});}}
+export async function PATCH(request:Request){const b=await request.json();const current=db.prepare("SELECT * FROM promos WHERE id=?").get(b.id) as Record<string,unknown>|undefined;if(!current)return NextResponse.json({error:"Промокод не найден."},{status:404});db.prepare("UPDATE promos SET active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(asBoolean(b.active)?1:0,b.id);return NextResponse.json({promos:list()});}
+export async function DELETE(request:Request){db.prepare("DELETE FROM promos WHERE id=?").run(new URL(request.url).searchParams.get("id"));return NextResponse.json({ok:true});}
+
